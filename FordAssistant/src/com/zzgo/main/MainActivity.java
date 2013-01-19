@@ -7,18 +7,16 @@ package com.zzgo.main;
 
 import java.util.Set;
 
-import com.ford.syncV4.exception.SyncException;
-import com.ford.syncV4.proxy.SyncProxyALM;
-import com.ford.syncV4.util.DebugTool;
-
-import android.os.Bundle;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.Intent;
+import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+
+import com.ford.syncV4.proxy.SyncProxyALM;
 
 public class MainActivity extends Activity {
 
