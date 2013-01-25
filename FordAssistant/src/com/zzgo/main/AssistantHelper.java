@@ -3,6 +3,9 @@
  */
 package com.zzgo.main;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * 
  * @author zhoulu
@@ -11,11 +14,17 @@ package com.zzgo.main;
  */
 public class AssistantHelper {
 
+	private Map<String, IAssistant> assistantList = new HashMap<String, IAssistant>();
+	
 	public void registerAssistant(IAssistant assistant) {
-
+		if(!assistantList.containsKey(assistant.getTypeAssistant().getType())){
+			assistantList.put(assistant.getTypeAssistant().getType(), assistant);
+		}
 	}
 
 	public void unregisterAssistant(IAssistant assistant) {
-
+		assistantList.remove(assistant.getTypeAssistant().getType());
+		assistant.releaseAssistant();
 	}
+
 }

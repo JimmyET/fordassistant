@@ -4,6 +4,7 @@
 package com.zzgo.gps;
 
 import com.zzgo.main.BaseAssistant;
+import com.zzgo.main.TypeAssistant;
 
 /**
  * 
@@ -12,5 +13,10 @@ import com.zzgo.main.BaseAssistant;
  * @version 1.0
  */
 public class GpsAssistant extends BaseAssistant {
+
+	@Override
+	public TypeAssistant getTypeAssistant() {
+		return TypeAssistant.GPS;
+	}
 
 }

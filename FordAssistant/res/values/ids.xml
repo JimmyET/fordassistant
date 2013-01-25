@@ -1,0 +1,15 @@
+<resources>
+    <item type="id" name="cmd_audo"/>
+    <item type="id" name="cmd_hand"/>
+    
+    <item type="id" name="cmd_music"/>
+    <item type="id" name="cmd_weather"/>
+    <item type="id" name="cmd_navigation"/>
+    <item type="id" name="cmd_info"/>
+    
+    <item type="id" name="cmd_add_alert"/>
+    
+    <item type="id" name="cmd_tts_listening"/>
+    <item type="id" name="cmd_tts_end"/>
+    
+</resources>

@@ -13,11 +13,13 @@ public interface IAssistant {
 
 	public void openAssistant();
 	
-	public void addAction(String actionId);
+	public void doAction(int action);
 	
-	public void doAction(String actionId);
-	
-	public void onResult(String actionId, IAction action);
+	public void onResult(int action);
 	
 	public void releaseAssistant();
+	
+	public void setIAssistantHandler(IAssistantHandler handler);
+	
+	public TypeAssistant getTypeAssistant();
 }
