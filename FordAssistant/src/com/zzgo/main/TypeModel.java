@@ -6,9 +6,10 @@ package com.zzgo.main;
 /**
  * 
  * @author zhoulu
- * @since 2013-1-20-下午9:19:07
+ * @since 2013-1-24-下午6:18:20
  * @version 1.0
  */
-public interface IAction {
-	public void doAction();
+public enum TypeModel {
+	AUTO,//自动
+	HAND//手动
 }

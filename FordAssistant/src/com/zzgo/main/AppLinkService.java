@@ -5,39 +5,61 @@
 
 package com.zzgo.main;
 
-import com.ford.syncV4.exception.SyncException;
-import com.ford.syncV4.exception.SyncExceptionCause;
-import com.ford.syncV4.proxy.SyncProxyALM;
-import com.ford.syncV4.proxy.interfaces.IProxyListenerALM;
-import com.ford.syncV4.proxy.rpc.*;
-import com.ford.syncV4.proxy.rpc.enums.ButtonName;
-import com.ford.syncV4.proxy.rpc.enums.DriverDistractionState;
-import com.ford.syncV4.proxy.rpc.enums.TextAlignment;
-import com.ford.syncV4.util.DebugTool;
-
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
-public class AppLinkService extends Service implements IProxyListenerALM {
+import com.ford.syncV4.exception.SyncException;
+import com.ford.syncV4.exception.SyncExceptionCause;
+import com.ford.syncV4.proxy.SyncProxyALM;
+import com.ford.syncV4.proxy.interfaces.IProxyListenerALM;
+import com.ford.syncV4.proxy.rpc.AddCommandResponse;
+import com.ford.syncV4.proxy.rpc.AddSubMenuResponse;
+import com.ford.syncV4.proxy.rpc.AlertResponse;
+import com.ford.syncV4.proxy.rpc.CreateInteractionChoiceSetResponse;
+import com.ford.syncV4.proxy.rpc.DeleteCommandResponse;
+import com.ford.syncV4.proxy.rpc.DeleteInteractionChoiceSetResponse;
+import com.ford.syncV4.proxy.rpc.DeleteSubMenuResponse;
+import com.ford.syncV4.proxy.rpc.EncodedSyncPDataResponse;
+import com.ford.syncV4.proxy.rpc.GenericResponse;
+import com.ford.syncV4.proxy.rpc.OnButtonEvent;
+import com.ford.syncV4.proxy.rpc.OnButtonPress;
+import com.ford.syncV4.proxy.rpc.OnCommand;
+import com.ford.syncV4.proxy.rpc.OnDriverDistraction;
+import com.ford.syncV4.proxy.rpc.OnEncodedSyncPData;
+import com.ford.syncV4.proxy.rpc.OnHMIStatus;
+import com.ford.syncV4.proxy.rpc.OnPermissionsChange;
+import com.ford.syncV4.proxy.rpc.OnTBTClientState;
+import com.ford.syncV4.proxy.rpc.PerformInteractionResponse;
+import com.ford.syncV4.proxy.rpc.ResetGlobalPropertiesResponse;
+import com.ford.syncV4.proxy.rpc.SetGlobalPropertiesResponse;
+import com.ford.syncV4.proxy.rpc.SetMediaClockTimerResponse;
+import com.ford.syncV4.proxy.rpc.ShowResponse;
+import com.ford.syncV4.proxy.rpc.SpeakResponse;
+import com.ford.syncV4.proxy.rpc.SubscribeButtonResponse;
+import com.ford.syncV4.proxy.rpc.UnsubscribeButtonResponse;
+import com.zzgo.gps.GpsAssistant;
+import com.zzgo.music.MusicAssistant;
+import com.zzgo.tts.TTSAssistant;
 
-	String TAG = "hello";
-	public int autoIncCorrId = 0;
+public class AppLinkService extends Service implements IProxyListenerALM, IAssistantHandler {
+
+	private static final String TAG = "AppLinkService";
 	private BluetoothAdapter mBtAdapter;
 	private SyncProxyALM proxy = null;
 	private static AppLinkService instance = null;
-	private MainActivity currentUIActivity;
-	private boolean driverdistrationNotif = false;
-	private boolean lockscreenUP = false;
+
+	private AssistantHelper assistantHelper;
+	private GpsAssistant gpsAssistant;
+	private MusicAssistant musicAssistant;
+	private TTSAssistant ttsAssistant;
+
+	private AssistantModel mAssistantModel;
 
 	public static AppLinkService getInstance() {
 		return instance;
-	}
-
-	public MainActivity getCurrentActivity() {
-		return currentUIActivity;
 	}
 
 	public SyncProxyALM getProxy() {
@@ -45,12 +67,30 @@ public class AppLinkService extends Service implements IProxyListenerALM {
 	}
 
 	public void setCurrentActivity(MainActivity currentActivity) {
-		this.currentUIActivity = currentActivity;
+		mAssistantModel.setCurrentActivity(currentActivity);
 	}
 
 	public void onCreate() {
 		super.onCreate();
 		instance = this;
+		mAssistantModel = new AssistantModel(this);
+		initAssistants();
+	}
+
+	private void initAssistants() {
+		assistantHelper = new AssistantHelper();
+
+		gpsAssistant = new GpsAssistant();
+		gpsAssistant.setIAssistantHandler(this);
+		assistantHelper.registerAssistant(gpsAssistant);
+
+		musicAssistant = new MusicAssistant();
+		musicAssistant.setIAssistantHandler(this);
+		assistantHelper.registerAssistant(musicAssistant);
+
+		ttsAssistant = new TTSAssistant();
+		ttsAssistant.setIAssistantHandler(this);
+		assistantHelper.registerAssistant(ttsAssistant);
 	}
 
 	public int onStartCommand(Intent intent, int flags, int startId) {
@@ -73,6 +113,7 @@ public class AppLinkService extends Service implements IProxyListenerALM {
 		if (proxy == null) {
 			try {
 				proxy = new SyncProxyALM(this, "Hello AppLink", true);
+				mAssistantModel.setProxy(proxy);
 			} catch (SyncException e) {
 				e.printStackTrace();
 				// error creating proxy, returned proxy = null
@@ -85,7 +126,7 @@ public class AppLinkService extends Service implements IProxyListenerALM {
 
 	public void onDestroy() {
 		disposeSyncProxy();
-		clearlockscreen();
+		mAssistantModel.clearlockscreen();
 		instance = null;
 		super.onDestroy();
 	}
@@ -98,12 +139,12 @@ public class AppLinkService extends Service implements IProxyListenerALM {
 				e.printStackTrace();
 			}
 			proxy = null;
-			clearlockscreen();
+			mAssistantModel.clearlockscreen();
 		}
 	}
 
 	public void onProxyClosed(String info, Exception e) {
-		clearlockscreen();
+		mAssistantModel.clearlockscreen();
 
 		if ((((SyncException) e).getSyncExceptionCause() != SyncExceptionCause.SYNC_PROXY_CYCLED)) {
 			if (((SyncException) e).getSyncExceptionCause() != SyncExceptionCause.BLUETOOTH_DISABLED) {
@@ -128,187 +169,62 @@ public class AppLinkService extends Service implements IProxyListenerALM {
 	}
 
 	public void onOnHMIStatus(OnHMIStatus notification) {
-
-		switch (notification.getSystemContext()) {
-		case SYSCTXT_MAIN:
-			break;
-		case SYSCTXT_VRSESSION:
-			break;
-		case SYSCTXT_MENU:
-			break;
-		default:
-			return;
-		}
-
-		switch (notification.getAudioStreamingState()) {
-		case AUDIBLE:
-			// play audio if applicable
-			break;
-		case NOT_AUDIBLE:
-			// pause/stop/mute audio if applicable
-			break;
-		default:
-			return;
-		}
-
-		switch (notification.getHmiLevel()) {
-		case HMI_FULL:
-			if (driverdistrationNotif == false) {
-				showLockScreen();
-			}
-			if (notification.getFirstRun()) {
-				// setup app on SYNC
-				// send welcome message if applicable
-				try {
-					proxy.show("this is the first", "show command", TextAlignment.CENTERED, ++autoIncCorrId);
-				} catch (SyncException e) {
-					DebugTool.logError("Failed to send Show", e);
-				}
-				// send addcommands
-				// subscribe to buttons
-				subButtons();
-				if (MainActivity.getInstance() != null) {
-					setCurrentActivity(MainActivity.getInstance());
-				}
-			} else {
-				try {
-					proxy.show("SyncProxy is", "Alive", TextAlignment.CENTERED, ++autoIncCorrId);
-				} catch (SyncException e) {
-					DebugTool.logError("Failed to send Show", e);
-				}
-			}
-			break;
-		case HMI_LIMITED:
-			if (driverdistrationNotif == false) {
-				showLockScreen();
-			}
-			break;
-		case HMI_BACKGROUND:
-			if (driverdistrationNotif == false) {
-				showLockScreen();
-			}
-			break;
-		case HMI_NONE:
-			Log.i("hello", "HMI_NONE");
-			driverdistrationNotif = false;
-			clearlockscreen();
-			break;
-		default:
-			return;
-		}
-	}
-
-	public void showLockScreen() {
-		// only throw up lockscreen if main activity is currently on top
-		// else, wait until onResume() to throw lockscreen so it doesn't
-		// pop-up while a user is using another app on the phone
-		if (currentUIActivity != null) {
-			if (currentUIActivity.isActivityonTop() == true) {
-				if (LockScreenActivity.getInstance() == null) {
-					Intent i = new Intent(this, LockScreenActivity.class);
-					i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-					i.addFlags(Intent.FLAG_ACTIVITY_NO_USER_ACTION);
-					startActivity(i);
-				}
-			}
-		}
-		lockscreenUP = true;
-	}
-
-	private void clearlockscreen() {
-		if (LockScreenActivity.getInstance() != null) {
-			LockScreenActivity.getInstance().exit();
-		}
-		lockscreenUP = false;
+		mAssistantModel.holdHMIStatus(notification);
 	}
 
 	public boolean getLockScreenStatus() {
-		return lockscreenUP;
-	}
-
-	public void subButtons() {
-		try {
-			proxy.subscribeButton(ButtonName.OK, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.SEEKLEFT, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.SEEKRIGHT, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.TUNEUP, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.TUNEDOWN, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_1, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_2, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_3, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_4, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_5, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_6, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_7, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_8, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_9, autoIncCorrId++);
-			proxy.subscribeButton(ButtonName.PRESET_0, autoIncCorrId++);
-		} catch (SyncException e) {
-		}
+		return mAssistantModel.isLockScreenUp();
 	}
 
 	public void onError(String info, Exception e) {
-		
 
 	}
 
 	public void onGenericResponse(GenericResponse response) {
-		
 
 	}
 
 	public void onOnCommand(OnCommand notification) {
-		
 
 	}
 
 	public void onAddCommandResponse(AddCommandResponse response) {
-		
 
 	}
 
 	public void onAddSubMenuResponse(AddSubMenuResponse response) {
-		
 
 	}
 
 	public void onCreateInteractionChoiceSetResponse(CreateInteractionChoiceSetResponse response) {
-		
 
 	}
 
 	public void onAlertResponse(AlertResponse response) {
-		
 
 	}
 
 	public void onDeleteCommandResponse(DeleteCommandResponse response) {
-		
 
 	}
 
 	public void onDeleteInteractionChoiceSetResponse(DeleteInteractionChoiceSetResponse response) {
-		
 
 	}
 
 	public void onDeleteSubMenuResponse(DeleteSubMenuResponse response) {
-		
 
 	}
 
 	public void onEncodedSyncPDataResponse(EncodedSyncPDataResponse response) {
-		
 
 	}
 
 	public void onPerformInteractionResponse(PerformInteractionResponse response) {
-		
 
 	}
 
 	public void onResetGlobalPropertiesResponse(ResetGlobalPropertiesResponse response) {
-		
 
 	}
 
@@ -317,71 +233,61 @@ public class AppLinkService extends Service implements IProxyListenerALM {
 	}
 
 	public void onSetMediaClockTimerResponse(SetMediaClockTimerResponse response) {
-		
 
 	}
 
 	public void onShowResponse(ShowResponse response) {
-		
 
 	}
 
 	public void onSpeakResponse(SpeakResponse response) {
-		
 
 	}
 
 	public void onOnButtonEvent(OnButtonEvent notification) {
-		
 
 	}
 
 	public void onOnButtonPress(OnButtonPress notification) {
-		
 
 	}
 
 	public void onSubscribeButtonResponse(SubscribeButtonResponse response) {
-		
 
 	}
 
 	public void onUnsubscribeButtonResponse(UnsubscribeButtonResponse response) {
-		
 
 	}
 
 	public void onOnPermissionsChange(OnPermissionsChange notification) {
-		
 
 	}
 
 	public void onOnDriverDistraction(OnDriverDistraction notification) {
-		driverdistrationNotif = true;
-		// Log.i(TAG, "dd: " + notification.getStringState());
-		if (notification.getState() == DriverDistractionState.DD_OFF) {
-			Log.i(TAG, "clear lock, DD_OFF");
-			clearlockscreen();
-		} else {
-			Log.i(TAG, "show lockscreen, DD_ON");
-			showLockScreen();
-		}
+		mAssistantModel.holdDriverDistraction(notification);
 	}
 
 	public void onOnEncodedSyncPData(OnEncodedSyncPData notification) {
-		
 
 	}
 
 	public void onOnTBTClientState(OnTBTClientState notification) {
-		
 
 	}
 
 	@Override
 	public IBinder onBind(Intent intent) {
-		
+
 		return null;
+	}
+
+	@Override
+	public void handlerAssistantResult(int action, IAssistant assistant) {
+		switch (assistant.getTypeAssistant()) {
+		case GPS:
+			break;
+		}
 	}
 
 }
